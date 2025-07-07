@@ -1,0 +1,41 @@
+main:
+  params: [args]
+  steps:
+    - checkInstance:
+        try:
+          call: googleapis.compute.v1.instances.get
+          args:
+            project: ${args.project_id}
+            zone: ${args.zone}
+            instance: ${args.vm_name}
+          result: vm
+        except:
+          as: getError
+          steps:
+            - vmNotFound:
+                switch:
+                  - condition: ${getError.code == 404}
+                    return: ${"⚠️ VM '" + args.vm_name + "' not found."}
+                  - condition: true
+                    raise: ${getError}
+
+    - deleteInstance:
+        try:
+          call: googleapis.compute.v1.instances.delete
+          args:
+            project: ${args.project_id}
+            zone: ${args.zone}
+            instance: ${args.vm_name}
+          result: deleteResponse
+        except:
+          as: deleteError
+          steps:
+            - checkDeleteError:
+                switch:
+                  - condition: ${deleteError.code == 404}
+                    return: ${"⚠️ VM '" + args.vm_name + "' already deleted or missing."}
+                  - condition: true
+                    raise: ${deleteError}
+
+    - done:
+        return: ${"✅ VM '" + args.vm_name + "' deletion started successfully."}
